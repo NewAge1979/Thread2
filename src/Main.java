@@ -52,14 +52,24 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         long startTs = System.currentTimeMillis(); // start time
+        System.out.println("*".repeat(100));
+        System.out.println("Лог:");
+        System.out.println("*".repeat(100));
+        Thread threadMax = getThreadMax();
         List<Thread> threadsMain = getThreadsMain();
         for (Thread threadMain : threadsMain) {
             threadMain.join();
         }
+        threadMax.interrupt();
+        System.out.println("*".repeat(100));
+        System.out.println("Итого:");
+        System.out.println("*".repeat(100));
         int max = getMaxFreqRepeat(sizeToFreq);
         outMaxFreqRepeat(sizeToFreq, max);
+        System.out.println("*".repeat(100));
         outOtherFreqRepeat(sizeToFreq, max);
         long endTs = System.currentTimeMillis(); // end time
+        System.out.println("*".repeat(100));
         System.out.printf("Time: %d ms.\n", (endTs - startTs));
     }
 
@@ -70,6 +80,7 @@ public class Main {
                 int countR = (int) generateRoute(ROUTE_TEMPLATE, ROUTE_LENGTH).chars().filter(x -> x == 'R').count();
                 synchronized (sizeToFreq) {
                     sizeToFreq.put(countR, (sizeToFreq.containsKey(countR) ? sizeToFreq.get(countR) + 1 : 1));
+                    sizeToFreq.notify();
                 }
             };
             Thread threadMain = new Thread(taskMain);
@@ -77,5 +88,25 @@ public class Main {
             threadsMain.add(threadMain);
         }
         return threadsMain;
+    }
+
+    private static Thread getThreadMax() {
+        Runnable taskMax = () -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                synchronized (sizeToFreq) {
+                    try {
+                        sizeToFreq.wait();
+                        int max = getMaxFreqRepeat(sizeToFreq);
+                        outMaxFreqRepeat(sizeToFreq, max);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();    // повторно сбрасываем состояние
+                    }
+                }
+            }
+        };
+        Thread threadMax = new Thread(taskMax);
+        threadMax.setName("threadMax");
+        threadMax.start();
+        return threadMax;
     }
 }
